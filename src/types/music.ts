@@ -87,6 +87,87 @@ export interface FolderEntry {
   lastScanAt: number | null
 }
 
+// ─── Playlists customizadas (Dexie v2) ──────────────────────────────────────
+
+/** Playlist criada pelo usuário ("Treino", "Foco", "Suno Hits"…). */
+export interface Playlist {
+  /** Id opaco gerado no renderer (crypto.randomUUID). */
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * Vínculo faixa↔playlist. Chave composta [playlistId+filePath] → impossível
+ * duplicar a mesma faixa na mesma playlist; `order` é a posição manual.
+ */
+export interface PlaylistTrack {
+  playlistId: string
+  filePath: string
+  /** Posição manual (0-based) — reordenável por drag. */
+  order: number
+  addedAt: number
+}
+
+// ─── Watcher de pastas (chokidar no main) ───────────────────────────────────
+
+/** Evento `library:file-added` — faixa nova/alterada detectada no disco. */
+export interface LibraryFileAddedEvent {
+  /** Pasta-raiz vigiada que contém o arquivo. */
+  folder: string
+  track: TrackScanInput
+}
+
+/** Evento `library:file-removed` — arquivo sumiu/mudou de lugar. */
+export interface LibraryFileRemovedEvent {
+  folder: string
+  filePath: string
+}
+
+/** Resultado do parse de caminhos soltos (drag & drop do Explorer). */
+export interface ParsePathsResult {
+  /** Arquivos de áudio já com metadados lidos. */
+  tracks: TrackScanInput[]
+  /** Diretórios soltos — o renderer decide escanear como pasta vigiada. */
+  directories: string[]
+  /** Caminhos ignorados (não-áudio, inexistentes, protegidos). */
+  skipped: string[]
+}
+
+/** Estatísticas da limpeza do cache de capas órfãs. */
+export interface CoverCleanupResult {
+  scanned: number
+  removed: number
+  freedBytes: number
+}
+
+// ─── Ponte com o processo main (tray, mini player, atalhos globais) ─────────
+
+/** Comandos de transporte enviados pelo main (atalhos globais/tray). */
+export type MediaCommand = 'toggle' | 'next' | 'previous' | 'stop'
+
+/** Estado resumido publicado pelo renderer → tray/mini player. */
+export interface PlayerBroadcastState {
+  isPlaying: boolean
+  status: 'idle' | 'loading' | 'playing' | 'paused' | 'buffering' | 'error'
+  title: string | null
+  artist: string | null
+  album: string | null
+  coverPath: string | null
+  currentTime: number
+  duration: number
+  volume: number
+  muted: boolean
+  shuffle: boolean
+  playMode: 'off' | 'all' | 'one'
+}
+
+/** Preferências que o main precisa conhecer (não dá para ler IndexedDB lá). */
+export interface MainWindowSettings {
+  closeToTray: boolean
+}
+
 export interface LibrarySyncResult {
   added: number
   updated: number

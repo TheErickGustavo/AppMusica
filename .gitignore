@@ -10,3 +10,4 @@ desktop.ini
 coverage/
 *.local
 tsconfig.*.tsbuildinfo
+v2.zip

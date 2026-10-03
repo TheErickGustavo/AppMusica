@@ -8,7 +8,7 @@ import {
   type ReactElement,
   type ReactNode
 } from 'react'
-import type { Track } from '@shared/music'
+import type { PlayerBroadcastState, Track } from '@shared/music'
 import { audioUrl } from '@/lib/media'
 import { registerPlayCount, touchLastPlayed } from '@/lib/db'
 import { pushToast } from '@/lib/toast'
@@ -129,6 +129,10 @@ export class AudioEngine {
   private autoChain = false
   private consecutiveErrors = 0
   private errorSkipTimer: ReturnType<typeof setTimeout> | null = null
+  /** Crossfade simples (fade-out de 2s no fim) — opt-in nas configurações. */
+  private crossfadeEnabled = false
+  private fadeTimer: ReturnType<typeof setInterval> | null = null
+  private fadeStartVolume = 1
 
   constructor() {
     const audio = new Audio()
@@ -169,6 +173,7 @@ export class AudioEngine {
     })
     on('timeupdate', () => {
       this.telemetryTick()
+      this.crossfadeTick()
       if (!this.scrubBlocked) this.patch({ currentTime: audio.currentTime })
     })
     on('play', () => {
@@ -181,6 +186,8 @@ export class AudioEngine {
       if (this.snapshot.track && (this.snapshot.status === 'playing' || this.snapshot.status === 'buffering')) {
         this.patch({ status: 'paused' })
       }
+      // Nada de faixa seguinte iminente quando o usuário pausa: volume volta.
+      this.cancelFade(true)
       this.stopRaf()
     })
     on('waiting', () => {
@@ -272,6 +279,7 @@ export class AudioEngine {
     this.destroyed = true
     this.stopRaf()
     if (this.errorSkipTimer) clearTimeout(this.errorSkipTimer)
+    this.cancelFade(false)
     this.audio.pause()
   }
 
@@ -329,6 +337,67 @@ export class AudioEngine {
       cancelAnimationFrame(this.rafId)
       this.rafId = 0
     }
+  }
+
+  // ─── Crossfade simples ───────────────────────────────────────────────────
+  // Nada de ping-pong de dois <audio>: quando faltam ≤2s para o fim, o volume
+  // cai linearmente até 0 em ~1.8s. A faixa seguinte entra com o volume cheio
+  // (restaurado em loadTrack). Se o usuário pausa/seek/pula, o fade é abortado.
+
+  setCrossfadeEnabled(enabled: boolean): void {
+    this.crossfadeEnabled = enabled
+    if (!enabled) this.cancelFade(true)
+  }
+
+  private cancelFade(restoreVolume: boolean): void {
+    if (this.fadeTimer) {
+      clearInterval(this.fadeTimer)
+      this.fadeTimer = null
+    }
+    if (restoreVolume && !this.destroyed) {
+      try {
+        this.audio.volume = this.snapshot.muted ? 0 : this.snapshot.volume
+      } catch {
+        /* elemento indisponível */
+      }
+    }
+  }
+
+  private hasSomethingNext(): boolean {
+    const s = this.snapshot
+    // Repeat-one repete a MESMA faixa: não há transição para crossfadar.
+    if (s.playMode === 'one') return false
+    if (s.pending.length > 0) return true
+    if (s.playMode === 'all') return s.order.length > 0
+    return s.orderPos + 1 < s.order.length
+  }
+
+  private crossfadeTick(): void {
+    if (!this.crossfadeEnabled || this.fadeTimer) return
+    const s = this.snapshot
+    const duration = s.duration || 0
+    if (!s.track || this.audio.paused || duration <= 4) return
+    const remaining = duration - this.audio.currentTime
+    if (remaining <= 0 || remaining > 2) return
+    if (!this.hasSomethingNext()) return
+    const base = s.muted ? 0 : s.volume
+    if (base <= 0) return
+
+    this.fadeStartVolume = base
+    const startedAt = performance.now()
+    const FADE_MS = 1800
+    this.fadeTimer = setInterval(() => {
+      const progress = Math.min(1, (performance.now() - startedAt) / FADE_MS)
+      try {
+        this.audio.volume = Math.max(0, this.fadeStartVolume * (1 - progress))
+      } catch {
+        /* elemento indisponível */
+      }
+      if (progress >= 1 && this.fadeTimer) {
+        clearInterval(this.fadeTimer)
+        this.fadeTimer = null
+      }
+    }, 40)
   }
 
   // ─── Fila / ordem / transporte ───────────────────────────────────────────
@@ -389,7 +458,14 @@ export class AudioEngine {
 
     void touchLastPlayed(track.filePath)
 
+    // Se veio de um crossfade, a faixa nova começa no volume normal.
+    this.cancelFade(false)
     this.audio.src = audioUrl(track.filePath)
+    try {
+      this.audio.volume = this.snapshot.muted ? 0 : this.snapshot.volume
+    } catch {
+      /* elemento indisponível */
+    }
     this.audio.load()
     if (autoplay) {
       try {
@@ -420,6 +496,7 @@ export class AudioEngine {
 
   /** Seek contínuo usado pelo scrubber durante o arraste. */
   seekLive(seconds: number): void {
+    this.cancelFade(true)
     const dur = this.snapshot.duration || 0
     const t = Math.max(0, dur > 0 ? Math.min(dur, seconds) : seconds)
     this.session.lastPos = t
@@ -613,6 +690,7 @@ export class AudioEngine {
 
   private handleEnded(): void {
     this.telemetryTick() // flush final — timeupdate pode ter atrasado no trecho final
+    this.cancelFade(false)
     if (this.snapshot.playMode === 'one' && this.snapshot.track) {
       this.seekTo(0)
       this.session.played = 0
@@ -626,24 +704,37 @@ export class AudioEngine {
 
   /** Chamado quando uma faixa some do disco/biblioteca: purga fila e bag. */
   notifyTrackGone(filePath: string): void {
-    if (this.snapshot.track?.filePath === filePath) {
+    this.purgeTracks([filePath])
+  }
+
+  /**
+   * Purga várias faixas de uma vez (watcher detectou arquivos apagados,
+   * Ctrl+A + remover da biblioteca…). Mantém a ordem/bag consistente.
+   */
+  purgeTracks(filePaths: string[]): void {
+    if (filePaths.length === 0) return
+    const remove = new Set(filePaths)
+
+    if (this.snapshot.track && remove.has(this.snapshot.track.filePath)) {
+      this.cancelFade(false)
       this.audio.pause()
       this.audio.removeAttribute('src')
       this.audio.load()
       this.patch({ status: 'idle', track: null, currentTime: 0, duration: 0 })
     }
+
     const oldQueue = this.snapshot.queue
-    const removedFromQueue = oldQueue.some((t) => t.filePath === filePath)
-    const pending = this.snapshot.pending.filter((t) => t.filePath !== filePath)
+    const removedFromQueue = oldQueue.some((t) => remove.has(t.filePath))
+    const pending = this.snapshot.pending.filter((t) => !remove.has(t.filePath))
 
     let order = this.snapshot.order
     let orderPos = this.snapshot.orderPos
-    const queue = removedFromQueue ? oldQueue.filter((t) => t.filePath !== filePath) : oldQueue
+    const queue = removedFromQueue ? oldQueue.filter((t) => !remove.has(t.filePath)) : oldQueue
 
     if (removedFromQueue) {
       const orderPaths = order
         .map((i) => oldQueue[i]?.filePath)
-        .filter((p): p is string => p != null && p !== filePath)
+        .filter((p): p is string => p != null && !remove.has(p))
       order = orderPaths.map((p) => queue.findIndex((t) => t.filePath === p)).filter((i) => i >= 0)
       const curPath = this.snapshot.track?.filePath
       const curIdx = curPath ? queue.findIndex((t) => t.filePath === curPath) : -1
@@ -697,12 +788,92 @@ export function AudioEngineProvider({ children }: { children: ReactNode }): Reac
       /* não-crítico */
     }
 
+    // ── Ponte com o main: bandeja, mini player e atalhos globais de mídia ──
+    // Um único assinante com throttle de 400ms: o tray/mini não precisa do
+    // relógio de 60fps, mas precisa reagir na hora a play/pause/troca de faixa.
+    const api = window.onda
+    let disposed = false
+    let lastSent = 0
+    let scheduled: ReturnType<typeof setTimeout> | null = null
+    const INTERVAL_MS = 400
+
+    const toBroadcast = (snap: PlayerSnapshot): PlayerBroadcastState => ({
+      isPlaying: snap.status === 'playing' && snap.track !== null,
+      status: snap.status,
+      title: snap.track?.title ?? null,
+      artist: snap.track?.artist ?? null,
+      album: snap.track?.album ?? null,
+      coverPath: snap.track?.coverPath ?? null,
+      currentTime: snap.currentTime,
+      duration: snap.duration,
+      volume: snap.volume,
+      muted: snap.muted,
+      shuffle: snap.shuffle,
+      playMode: snap.playMode
+    })
+
+    const flush = (): void => {
+      if (disposed) return
+      lastSent = performance.now()
+      api?.broadcastPlayerState(toBroadcast(engine.getSnapshot()))
+    }
+
+    const unsubscribe =
+      api === undefined
+        ? (): void => undefined
+        : engine.subscribe(() => {
+            const now = performance.now()
+            if (now - lastSent >= INTERVAL_MS) {
+              flush()
+              return
+            }
+            if (scheduled) return
+            scheduled = setTimeout(() => {
+              scheduled = null
+              flush()
+            }, INTERVAL_MS - (now - lastSent))
+          })
+
+    const offCommand = api?.onPlayerCommand((command) => {
+      switch (command) {
+        case 'toggle':
+          engine.togglePlay()
+          break
+        case 'next':
+          engine.next()
+          break
+        case 'previous':
+          engine.previous()
+          break
+        case 'stop':
+          engine.pause()
+          break
+      }
+    })
+
+    // Faixas que sumiram do disco (watcher) ou foram removidas em lote.
+    const onTracksRemoved = (e: Event): void => {
+      const detail = (e as CustomEvent<{ filePaths: string[] }>).detail
+      if (detail?.filePaths?.length) engine.purgeTracks(detail.filePaths)
+    }
+    window.addEventListener('onda:tracks-removed', onTracksRemoved)
+
+    flush()
+
     const onErrorToast = (e: Event): void => {
       const detail = (e as CustomEvent<{ filePath: string; message: string }>).detail
       pushToast('error', 'Falha na reprodução', detail?.message)
     }
     window.addEventListener('onda:playback-error', onErrorToast)
-    return () => window.removeEventListener('onda:playback-error', onErrorToast)
+
+    return () => {
+      disposed = true
+      unsubscribe()
+      offCommand?.()
+      if (scheduled) clearTimeout(scheduled)
+      window.removeEventListener('onda:tracks-removed', onTracksRemoved)
+      window.removeEventListener('onda:playback-error', onErrorToast)
+    }
   }, [engine])
 
   return <EngineContext.Provider value={engine}>{children}</EngineContext.Provider>
@@ -753,6 +924,8 @@ export interface PlayerActions {
   enqueue(tracks: Track[], position: 'next' | 'last'): void
   removeUpcoming(item: UpcomingItem): void
   notifyTrackGone(filePath: string): void
+  purgeTracks(filePaths: string[]): void
+  setCrossfade(enabled: boolean): void
   setScrubBlocked(blocked: boolean): void
   getAudioElement(): HTMLAudioElement
 }
@@ -777,6 +950,8 @@ export function usePlayerActions(): PlayerActions {
     enqueue: (t, p) => engine.enqueue(t, p),
     removeUpcoming: (item) => engine.removeUpcoming(item),
     notifyTrackGone: (filePath) => engine.notifyTrackGone(filePath),
+    purgeTracks: (filePaths) => engine.purgeTracks(filePaths),
+    setCrossfade: (enabled) => engine.setCrossfadeEnabled(enabled),
     setScrubBlocked: (blocked) => {
       engine.scrubBlocked = blocked
     },

@@ -19,12 +19,15 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "icons:media": "node scripts/generate-media-icons.mjs"
   },
   "dependencies": {
+    "chokidar": "^3.6.0",
     "dexie": "^4.0.10",
     "dexie-react-hooks": "^1.1.7",
     "framer-motion": "^11.11.17",
+    "fuse.js": "^7.5.0",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -60,11 +63,26 @@
     "asarUnpack": [
       "node_modules/music-metadata/**"
     ],
+    "extraResources": [
+      { "from": "resources/player", "to": "player" },
+      { "from": "buildResources/icon@32.png", "to": "tray-icon.png" },
+      { "from": "buildResources/icon.png", "to": "icon.png" }
+    ],
     "win": {
       "icon": "buildResources/icon.ico",
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {
