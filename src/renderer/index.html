@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="pt-BR" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Onda — Local Soundscape Engine</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      CSP: mantida no default do Electron — app local, sem rede, sem scripts remotos.
+      (A meta CSP engoliria o preamble inline do react-refresh no dev; segurança
+      real aqui vem de: sandbox renderer, contextIsolation, nodeIntegration:false
+      e o protocolo media:// que só serve extensões da whitelist.)
+    -->
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  </head>
+  <body class="bg-[#09090b]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
