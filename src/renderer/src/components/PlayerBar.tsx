@@ -4,6 +4,7 @@ import {
   Heart,
   ListMusic,
   Pause,
+  PictureInPicture2,
   Play,
   Repeat,
   Repeat1,
@@ -30,12 +31,14 @@ export function PlayerBar({
   onToggleLike,
   onToggleDislike,
   onToggleQueue,
-  queueOpen
+  queueOpen,
+  onOpenMini
 }: {
   onToggleLike: (filePath: string) => void
   onToggleDislike: (filePath: string) => void
   onToggleQueue: () => void
   queueOpen: boolean
+  onOpenMini: () => void
 }): ReactElement {
   const s = usePlayerState()
   const actions = usePlayerActions()
@@ -193,8 +196,16 @@ export function PlayerBar({
         </div>
       </div>
 
-      {/* ── fila + volume ── */}
+      {/* ── fila + mini player + volume ── */}
       <div className="flex w-[23%] min-w-[210px] items-center justify-end gap-1.5">
+        <button
+          type="button"
+          title="Mini player flutuante (P) — toca por cima dos outros apps"
+          onClick={onOpenMini}
+          className="icon-btn"
+        >
+          <PictureInPicture2 className="h-[17px] w-[17px]" />
+        </button>
         <button
           type="button"
           title="Fila de reprodução (Q)"

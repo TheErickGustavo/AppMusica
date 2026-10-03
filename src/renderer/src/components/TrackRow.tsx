@@ -1,4 +1,4 @@
-import { memo, type MouseEvent as ReactMouseEvent, type ReactElement } from 'react'
+import { memo, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent, type ReactElement } from 'react'
 import { MoreHorizontal, Pause, Play } from 'lucide-react'
 import type { Track } from '@shared/music'
 import { CoverArt } from './CoverArt'
@@ -16,12 +16,21 @@ interface TrackRowProps {
   isSelected: boolean
   height: number
   isDisliked: boolean
-  onSelect: (track: Track) => void
+  /** Seleção múltipla ativa em outras linhas → checkbox visual na coluna #. */
+  selectionMode?: boolean
+  /** Drag & drop interno da playlist (ordem manual). */
+  reorderable?: boolean
+  isDropTarget?: boolean
+  onSelect: (track: Track, event: ReactMouseEvent) => void
   onPlay: (track: Track) => void
   onContextMenu: (e: ReactMouseEvent, track: Track) => void
   onToggleLike: (track: Track) => void
   onToggleDislike: (track: Track) => void
   onMore: (e: ReactMouseEvent, track: Track) => void
+  onDragStartRow?: (track: Track, event: ReactDragEvent) => void
+  onDragOverRow?: (track: Track, event: ReactDragEvent) => void
+  onDropRow?: (track: Track, event: ReactDragEvent) => void
+  onDragEndRow?: () => void
 }
 
 /** Linha da tabela — memo puro: 10k faixas re-renderizam só as janelas visíveis. */
@@ -33,31 +42,62 @@ export const TrackRow = memo(function TrackRow({
   isSelected,
   height,
   isDisliked,
+  selectionMode = false,
+  reorderable = false,
+  isDropTarget = false,
   onSelect,
   onPlay,
   onContextMenu,
   onToggleLike,
   onToggleDislike,
-  onMore
+  onMore,
+  onDragStartRow,
+  onDragOverRow,
+  onDropRow,
+  onDragEndRow
 }: TrackRowProps): ReactElement {
   return (
     <div
       role="row"
       aria-current={isCurrent ? 'true' : undefined}
+      aria-selected={isSelected}
       title={`${track.filePath}\n${track.codec ?? ''}${track.bitrate ? ` · ${track.bitrate} kbps` : ''}${track.sampleRate ? ` · ${track.sampleRate} Hz` : ''}`}
-      onClick={() => onSelect(track)}
+      draggable={reorderable}
+      onClick={(e) => onSelect(track, e)}
       onDoubleClick={() => onPlay(track)}
       onContextMenu={(e) => onContextMenu(e, track)}
+      onDragStart={reorderable ? (e) => onDragStartRow?.(track, e) : undefined}
+      onDragOver={reorderable ? (e) => onDragOverRow?.(track, e) : undefined}
+      onDrop={reorderable ? (e) => onDropRow?.(track, e) : undefined}
+      onDragEnd={reorderable ? () => onDragEndRow?.() : undefined}
       style={{ height }}
       className={`group/row relative cursor-default select-none border-b border-white/[0.025] px-5 ${GRID_TEMPLATE} transition-colors duration-100 ${
-        isCurrent ? 'bg-white/[0.05]' : isSelected ? 'bg-white/[0.045]' : 'hover:bg-white/[0.035]'
+        isSelected
+          ? 'bg-emerald-400/[0.07]'
+          : isCurrent
+            ? 'bg-white/[0.05]'
+            : 'hover:bg-white/[0.035]'
       }`}
     >
       {isCurrent && <span className="absolute inset-y-0 left-0 w-[2.5px] rounded-full bg-emerald-400" />}
+      {isDropTarget && <span className="absolute inset-x-0 top-0 h-[2px] bg-emerald-400/80" />}
 
-      {/* nº / estado */}
+      {/* nº / estado (+ checkbox em modo seleção) */}
       <div className="relative flex h-full items-center justify-center text-[12px]">
-        {isCurrent ? (
+        {selectionMode ? (
+          <span
+            className={`flex h-3.5 w-3.5 items-center justify-center rounded-[4px] border transition-colors ${
+              isSelected ? 'border-emerald-400 bg-emerald-500/80' : 'border-white/20 bg-transparent'
+            }`}
+            aria-hidden
+          >
+            {isSelected && (
+              <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 text-zinc-950" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M1.5 5.2 L3.8 7.5 L8.5 2.5" />
+              </svg>
+            )}
+          </span>
+        ) : isCurrent ? (
           <>
             <div className={`flex h-3.5 items-end gap-[2px] ${isPlaying ? '' : 'eq-paused opacity-60'}`} aria-hidden>
               <span className="eq-bar w-[2.5px] rounded-sm bg-emerald-400" style={{ height: '100%' }} />

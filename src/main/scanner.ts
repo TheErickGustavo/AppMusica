@@ -6,7 +6,7 @@ import { parseFile } from 'music-metadata'
 import type { ScanResponse, TrackScanInput } from '@shared/music'
 
 /** Formatos suportados nativamente pelo Chromium do Electron no Windows. */
-const AUDIO_EXTENSIONS = new Set([
+export const AUDIO_EXTENSIONS = new Set([
   '.mp3',
   '.flac',
   '.m4a',
@@ -41,6 +41,11 @@ export function cancelActiveScan(): void {
 }
 
 type ProgressFn = (p: { stage: 'walk' | 'parse' | 'done'; done: number; total: number; current: string }) => void
+
+/** true se a extensão é de áudio suportado (case-insensitive). */
+export function isAudioFile(filePath: string): boolean {
+  return AUDIO_EXTENSIONS.has(extname(filePath).toLowerCase())
+}
 
 /** Coleta recursiva de arquivos de áudio, ignorando itens ocultos/de sistema. */
 async function walk(dir: string, acc: string[], budget: { files: number }): Promise<void> {
@@ -102,7 +107,7 @@ function pictureExtension(mime: string): string {
   }
 }
 
-async function parseTrack(filePath: string): Promise<TrackScanInput> {
+export async function parseTrack(filePath: string): Promise<TrackScanInput> {
   const stat = await fs.stat(filePath)
   const fallbackTitle = basename(filePath, extname(filePath))
     .replace(/^\d+\s*[-_.]\s*/, '') // remove prefixo "01 - "
@@ -221,7 +226,9 @@ export async function scanDirectory(
   const changed: TrackScanInput[] = []
   const unchanged: string[] = []
 
-  await mapPool(files, 8, async (filePath) => {
+  // 4 workers: 8 conexões simultâneas causavam thrash em HDD externo/USB
+  // (seek físico a cada leitura) — com 4 a varredura fica mais rápida na média.
+  await mapPool(files, 4, async (filePath) => {
     throwIfCancelled()
     let statSize = -1
     let statMtime = -1
@@ -250,4 +257,47 @@ export async function scanDirectory(
 
   onProgress({ stage: 'done', done: total, total, current: '' })
   return { dir, changed, unchanged, scannedAt }
+}
+
+// ─── Manutenção do cache de capas ───────────────────────────────────────────
+
+/**
+ * Remove capas do cache de disco que não pertencem a nenhuma faixa viva.
+ * O renderer manda a lista de `coverPath` existentes no Dexie; tudo o que
+ * estiver em COVERS_DIR e não estiver nessa lista é órfão (arquivo removido,
+ * re-tag, pasta trocada) e pode ir embora sem dó.
+ */
+export async function cleanupOrphanCovers(knownCoverPaths: string[]): Promise<{
+  scanned: number
+  removed: number
+  freedBytes: number
+}> {
+  const known = new Set(knownCoverPaths.map((p) => p.toLowerCase()))
+  let scanned = 0
+  let removed = 0
+  let freedBytes = 0
+
+  let entries: string[]
+  try {
+    entries = await fs.readdir(COVERS_DIR)
+  } catch {
+    return { scanned: 0, removed: 0, freedBytes: 0 } // cache nem existe
+  }
+
+  for (const name of entries) {
+    const full = join(COVERS_DIR, name)
+    scanned++
+    if (known.has(full.toLowerCase())) continue
+    try {
+      const stat = await fs.stat(full)
+      if (!stat.isFile()) continue
+      await fs.unlink(full)
+      removed++
+      freedBytes += stat.size
+    } catch {
+      // arquivo em uso/sem permissão — tenta na próxima limpeza
+    }
+  }
+
+  return { scanned, removed, freedBytes }
 }
