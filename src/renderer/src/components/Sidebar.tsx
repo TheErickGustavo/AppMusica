@@ -396,6 +396,49 @@ export function Sidebar({ lib }: { lib: Library }): ReactElement {
             </ul>
           )}
         </div>
+
+        {/* ajustes — rolam junto com o miolo para o rodapé ficar compacto */}
+        <div className="mt-5">
+          <SectionTitle>Ajustes</SectionTitle>
+          <div className="px-2">
+            <SettingToggle
+              label="Vigiar pastas em tempo real"
+              hint="Músicas baixadas com outro app entram sozinhas na biblioteca."
+              checked={settings.watchFolders}
+              onChange={(value) => void updateSettings({ watchFolders: value })}
+            />
+            <SettingToggle
+              label="Re-escanear pastas ao abrir"
+              checked={settings.autoRescanOnLaunch}
+              onChange={(value) => void updateSettings({ autoRescanOnLaunch: value })}
+            />
+            <SettingToggle
+              label="Fechar para a bandeja"
+              hint="X esconde a janela e a música continua tocando."
+              checked={settings.closeToTray}
+              onChange={(value) => void updateSettings({ closeToTray: value })}
+            />
+            <SettingToggle
+              label="Crossfade no fim da faixa"
+              hint="Fade-out de 2s quando falta pouco para a próxima faixa."
+              checked={settings.crossfade}
+              onChange={(value) => void updateSettings({ crossfade: value })}
+            />
+            <button
+              type="button"
+              onClick={() => void lib.cleanupCovers()}
+              disabled={!lib.desktop}
+              className="mt-1.5 flex h-8 w-full cursor-default items-center justify-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] text-[11.5px] font-medium text-zinc-400 transition-colors hover:border-white/[0.12] hover:text-zinc-200 disabled:pointer-events-none disabled:opacity-40"
+            >
+              <ImageOff className="h-3.5 w-3.5" />
+              Limpar cache de capas órfãs
+            </button>
+          </div>
+          <p className="mt-1.5 flex items-center gap-1.5 px-4 text-[10.5px] leading-relaxed text-zinc-600">
+            <Sparkles className="h-3 w-3 shrink-0 text-emerald-500/70" />
+            {settings.watchFolders ? 'Watcher ativo: novas músicas aparecem sem clicar em nada.' : 'Watcher desligado — use Re-escanear.'}
+          </p>
+        </div>
       </nav>
 
       {/* estatísticas globais */}
@@ -415,43 +458,6 @@ export function Sidebar({ lib }: { lib: Library }): ReactElement {
           <span className="font-mono tabular-nums">{stats.total > 0 ? formatDurationTotal(stats.totalDuration) : '0 min'}</span>
         </div>
 
-        <SettingToggle
-          label="Vigiar pastas em tempo real"
-          hint="Músicas baixadas com outro app entram sozinhas na biblioteca."
-          checked={settings.watchFolders}
-          onChange={(value) => void updateSettings({ watchFolders: value })}
-        />
-        <SettingToggle
-          label="Re-escanear pastas ao abrir"
-          checked={settings.autoRescanOnLaunch}
-          onChange={(value) => void updateSettings({ autoRescanOnLaunch: value })}
-        />
-        <SettingToggle
-          label="Fechar para a bandeja"
-          hint="X esconde a janela e a música continua tocando."
-          checked={settings.closeToTray}
-          onChange={(value) => void updateSettings({ closeToTray: value })}
-        />
-        <SettingToggle
-          label="Crossfade no fim da faixa"
-          hint="Fade-out de 2s quando falta pouco para a próxima faixa."
-          checked={settings.crossfade}
-          onChange={(value) => void updateSettings({ crossfade: value })}
-        />
-
-        <button
-          type="button"
-          onClick={() => void lib.cleanupCovers()}
-          disabled={!lib.desktop}
-          className="mt-2 flex h-8 w-full cursor-default items-center justify-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] text-[11.5px] font-medium text-zinc-400 transition-colors hover:border-white/[0.12] hover:text-zinc-200 disabled:pointer-events-none disabled:opacity-40"
-        >
-          <ImageOff className="h-3.5 w-3.5" />
-          Limpar cache de capas órfãs
-        </button>
-        <p className="mt-1.5 flex items-center gap-1.5 px-1 text-[10.5px] leading-relaxed text-zinc-600">
-          <Sparkles className="h-3 w-3 text-emerald-500/70" />
-          {settings.watchFolders ? 'Watcher ativo: novas músicas aparecem sem clicar em nada.' : 'Watcher desligado — use Re-escanear.'}
-        </p>
       </div>
     </aside>
   )
