@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Onda — Local Soundscape Engine">
+  <!--
+    ONDA · ÍCONE OFICIAL
+    Conceito: uma onda sonora emergindo de um disco — geometria pura,
+    metal escovado escuro, brilho esmeralda. Zero raster, zero filtro pesado:
+    escala de 16px (favicon) a 1024px (instalador) sem perder nitidez.
+  -->
+  <defs>
+    <!-- base squircle: grafite profundo com leve inclinação metálica -->
+    <linearGradient id="base" x1="168" y1="120" x2="880" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2b2b31"/>
+      <stop offset="0.42" stop-color="#17171b"/>
+      <stop offset="0.78" stop-color="#0e0e11"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+
+    <!-- sheen de vidro no topo -->
+    <linearGradient id="sheen" x1="512" y1="32" x2="512" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.028"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- halo acústico atrás do disco -->
+    <radialGradient id="glow" cx="512" cy="488" r="368" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#10b981" stop-opacity="0.22"/>
+      <stop offset="0.62" stop-color="#10b981" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#10b981" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- anel do disco: prata → sombra → esmeralda -->
+    <linearGradient id="ring" x1="232" y1="216" x2="808" y2="824" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f4f4f5" stop-opacity="0.62"/>
+      <stop offset="0.38" stop-color="#a1a1aa" stop-opacity="0.14"/>
+      <stop offset="0.72" stop-color="#3f3f46" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#10b981" stop-opacity="0.78"/>
+    </linearGradient>
+
+    <!-- barras de onda: branco no pico, esmeralda na base -->
+    <linearGradient id="wave" x1="512" y1="216" x2="512" y2="832" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fafafa"/>
+      <stop offset="0.58" stop-color="#e4e4e7"/>
+      <stop offset="0.86" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+
+  <!-- corpo -->
+  <rect x="32" y="32" width="960" height="960" rx="216" fill="url(#base)"/>
+  <rect x="33.5" y="33.5" width="957" height="957" rx="214.5" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="3"/>
+  <rect x="52" y="52" width="920" height="920" rx="200" fill="none" stroke="#000000" stroke-opacity="0.35" stroke-width="2"/>
+
+  <!-- halo -->
+  <circle cx="512" cy="512" r="368" fill="url(#glow)"/>
+
+  <!-- sulcos do disco (grooves) -->
+  <circle cx="512" cy="512" r="312" fill="none" stroke="#ffffff" stroke-opacity="0.045" stroke-width="30"/>
+  <circle cx="512" cy="512" r="262" fill="none" stroke="#ffffff" stroke-opacity="0.055" stroke-width="9"/>
+  <circle cx="512" cy="512" r="236" fill="none" stroke="#ffffff" stroke-opacity="0.045" stroke-width="5"/>
+  <circle cx="512" cy="512" r="188" fill="none" stroke="#ffffff" stroke-opacity="0.05" stroke-width="5"/>
+
+  <!-- anel principal usinado -->
+  <circle cx="512" cy="512" r="286" fill="none" stroke="url(#ring)" stroke-width="7"/>
+
+  <!-- onda sonora atravessando o disco (7 barras, capsulas perfeitamente redondas) -->
+  <g fill="url(#wave)">
+    <rect x="256" y="466" width="48" height="92"  rx="24" opacity="0.42"/>
+    <rect x="332" y="396" width="48" height="232" rx="24" opacity="0.62"/>
+    <rect x="408" y="316" width="48" height="392" rx="24" opacity="0.82"/>
+    <rect x="488" y="216" width="48" height="592" rx="24"/>
+    <rect x="568" y="340" width="48" height="344" rx="24" opacity="0.82"/>
+    <rect x="644" y="428" width="48" height="168" rx="24" opacity="0.62"/>
+    <rect x="720" y="478" width="48" height="68"  rx="24" opacity="0.42"/>
+  </g>
+
+  <!-- centro: hub do disco pulsando em esmeralda -->
+  <circle cx="512" cy="512" r="46" fill="#09090b"/>
+  <circle cx="512" cy="512" r="46" fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="3"/>
+  <circle cx="512" cy="512" r="30" fill="#10b981"/>
+  <circle cx="512" cy="512" r="30" fill="none" stroke="#a7f3d0" stroke-opacity="0.55" stroke-width="2"/>
+  <circle cx="503" cy="503" r="8.5" fill="#6ee7b7" fill-opacity="0.9"/>
+
+  <!-- sheen de vidro -->
+  <rect x="40" y="40" width="944" height="944" rx="210" fill="url(#sheen)"/>
+</svg>
