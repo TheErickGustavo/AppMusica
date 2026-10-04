@@ -20,7 +20,8 @@ import { pushToast } from '@/lib/toast'
  *  - Fila com ordem explícita ("bag"): shuffle Fisher-Yates que NUNCA inclui
  *    faixas `disliked`. Rejeitadas só tocam por ação direta do usuário.
  *  - Telemetria anti-spam: playCount += 1 quando o tempo OUVINDO acumulado
- *    cruza 50% da duração OU 30s contínuos — o que vier primeiro.
+ *    cruza 50% da duração OU 30s — o que vier primeiro — e +1 a cada
+ *    duração inteira acumulada depois disso (replay conta de novo).
  *    Seek, pause, buffer-stall e fim de arquivo não inflacionam o número.
  *  - Snapshot imutável + useSyncExternalStore com seletores: linhas da tabela
  *    só re-renderizam quando o QUE ELAS LEEM muda (não a cada frame).
@@ -117,7 +118,7 @@ export class AudioEngine {
   /** Telemetria da sessão de audição da faixa corrente. */
   private session = {
     played: 0,
-    counted: false,
+    count: 0,
     lastRealMs: performance.now(),
     lastPos: 0,
     seeking: false
@@ -304,14 +305,17 @@ export class AudioEngine {
 
     s.played += realDtMs / 1000
 
-    if (!s.counted) {
-      const duration = this.snapshot.duration || this.snapshot.track.duration || 0
-      const threshold = duration > 0 ? Math.min(duration * MIN_LISTEN_RATIO, MIN_CONTINUOUS_SECONDS) : MIN_CONTINUOUS_SECONDS
-      if (s.played >= threshold) {
-        s.counted = true
-        void registerPlayCount(this.snapshot.track.filePath)
-        this.callbacks.onTrackCounted?.(this.snapshot.track.filePath)
-      }
+    // +1 ao cruzar o limiar inicial (50% ou 30s) e +1 a cada duração
+    // inteira acumulada depois disso — repetir a faixa (seek p/ o zero,
+    // repeat-one, replay) conta de novo. Sem duração conhecida, vale o +1 único.
+    const duration = this.snapshot.duration || this.snapshot.track.duration || 0
+    const threshold = duration > 0 ? Math.min(duration * MIN_LISTEN_RATIO, MIN_CONTINUOUS_SECONDS) : MIN_CONTINUOUS_SECONDS
+    const step = duration > 0 ? duration : Number.POSITIVE_INFINITY
+    const earned = s.played >= threshold ? 1 + Math.floor((s.played - threshold) / step) : 0
+    while (s.count < earned) {
+      s.count++
+      void registerPlayCount(this.snapshot.track.filePath)
+      this.callbacks.onTrackCounted?.(this.snapshot.track.filePath)
     }
   }
 
@@ -439,7 +443,7 @@ export class AudioEngine {
   }
 
   private async loadTrack(track: Track, autoplay: boolean): Promise<void> {
-    this.session = { played: 0, counted: false, lastRealMs: performance.now(), lastPos: 0, seeking: false }
+    this.session = { played: 0, count: 0, lastRealMs: performance.now(), lastPos: 0, seeking: false }
     if (this.snapshot.status !== 'error') this.consecutiveErrors = 0
     const provisionalDuration = track.duration > 0 ? track.duration : 0
     this.patch({ track, currentTime: 0, duration: provisionalDuration, status: 'loading' })
@@ -694,7 +698,7 @@ export class AudioEngine {
     if (this.snapshot.playMode === 'one' && this.snapshot.track) {
       this.seekTo(0)
       this.session.played = 0
-      this.session.counted = false
+      this.session.count = 0
       this.session.lastRealMs = performance.now()
       void this.audio.play().catch(() => undefined)
       return

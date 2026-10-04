@@ -123,8 +123,10 @@ O `electron-builder` converte `buildResources/icon.png` em `.ico` automaticament
 ## 📐 Regras de negócio implementadas
 
 ### Telemetria anti-spam (play count “de verdade”)
-O contador só soma **+1** quando o tempo *efetivamente ouvido* cruza
-`min(50% da duração, 30s)` — o que vier primeiro. A contagem:
+O contador soma **+1** quando o tempo *efetivamente ouvido* cruza
+`min(50% da duração, 30s)` — o que vier primeiro — e **+1 a cada duração
+inteira acumulada depois disso** (ouvir 10min de uma música de 1min ≈ 10 plays).
+A contagem:
 - acumula só com áudio **fluindo** (relógio de parede × posição do player precisam concordar, janela de 750ms);
 - **não** conta seek, pause-baiting, buffer stall, cliques repetidos, nem faixa pulada cedo;
 - roda no `requestAnimationFrame` + `timeupdate` com **flush no `ended`**;
