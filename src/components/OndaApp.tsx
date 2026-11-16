@@ -440,6 +440,14 @@ export function OndaApp(): React.ReactElement {
               <LogOut className="h-3.5 w-3.5" />
             </button>
           </div>
+          <a
+            href="https://github.com/TheErickGustavo/AppMusica"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-2 text-zinc-400 hover:text-white text-[10px] uppercase"
+          >
+            GitHub
+          </a>
         </div>
       </header>
 
